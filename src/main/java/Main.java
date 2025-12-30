@@ -1,12 +1,19 @@
+import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.stage.Stage;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static javafx.application.Application.launch;
 
@@ -21,37 +28,123 @@ public class Main extends Application {
         gc.setFill(Color.BLACK);
         gc.fillRect(0, 0, gameCanvas.getWidth(), gameCanvas.getHeight());
         // set the stage by drawing the brick layer & paddle & ball
-        drawSomething(gc);
+        // drawSomething(gc);
+        Brick[][] brickWall = initBricks(gc);
+        Paddle paddle = initPaddle(gc);
+        Ball ball = initBall(gc);
+
         root.getChildren().add(gameCanvas);
-        primaryStage.setScene(new Scene(root));
+        Scene scene = new Scene(root);
+        scene.addEventHandler(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.LEFT){
+                paddle.leftPressed = true;
+            } else if (event.getCode() == KeyCode.RIGHT){
+                paddle.rightPressed = true;
+            }
+        });
+        scene.addEventHandler(KeyEvent.KEY_RELEASED, event -> {
+            if (event.getCode() == KeyCode.LEFT){
+                paddle.leftPressed = false;
+            } else if (event.getCode() == KeyCode.RIGHT){
+                paddle.rightPressed = false;
+            }
+        });
+        primaryStage.setScene(scene);
         primaryStage.show();
+        AnimationTimer timer = new AnimationTimer() {
+            private long lastNow = -1;
+
+            @Override
+            public void handle(long now){
+                if (lastNow < 0){
+                    lastNow = now;
+                    return;
+                }
+                double dt = (now - lastNow) / 1_000_000_000.0;
+                lastNow = now;
+                if (dt > 0.05){
+                    dt = 0.05;
+                }
+                double w = gameCanvas.getWidth();
+                double h = gameCanvas.getHeight();
+                update(dt, paddle, ball, brickWall, w, h);
+                render(gc, brickWall, paddle, ball, w, h);
+            }
+        };
+        timer.start();
     }
 
     public static void main(String [] args){
         launch(args);
     }
 
-    // just use to test out the drawing of the components
-    private static void drawSomething(GraphicsContext gc){
-        gc.setFill(Color.ORANGE);
-        gc.setStroke(Color.BLACK);
+    private static void update(double dt, Paddle paddle, Ball ball, Brick[][] bricks, double sceneWidth,
+                               double sceneHeight){}
+
+    private static void render(GraphicsContext gc, Brick[][] bricks, Paddle paddle, Ball ball,
+                               double canvasWidth, double canvasHeight){
+
+    }
+
+    private static Brick[][] initBricks(GraphicsContext gc){
         int rows = 3;
         int cols = 7;
         double currX = 0;
         double currY = 0;
         double w = 100;
         double h = 100;
-        for (int j = 0; j < rows; j++){
-            for (int i = 0; i < cols; i++){
-                gc.fillRect(currX, currY, w, h);
-                currX += (w + 1);
+//        ArrayList<Color> colorsArray = new ArrayList<>(
+//                Arrays.asList(Color.ORANGE, Color.BLUE, Color.GREEN));
+
+        Brick[][] bricks = new Brick[rows][cols];
+        for (int i = 0; i < rows; i++){
+            for (int j = 0; j < cols; j++){
+               Brick currBrick = new Brick(currX, currY, w, h);
+               bricks[i][j] = currBrick;
+//               gc.setFill(colorsArray.get(i));
+//               gc.setStroke(Color.BLACK);
+               gc.fillRect(currX, currY, w, h);
+               currX += (w + 1);
             }
             currY += (h + 1);
             currX = 0;
         }
-        // keep w and h similar so that it looks like a circle
-        gc.fillOval(100, 400, 30, 30);
+        return bricks;
     }
+
+    private static Paddle initPaddle(GraphicsContext gc){
+        Paddle myPaddle = new Paddle(300, 600, 100, 20);
+        return myPaddle;
+    }
+
+    private static Ball initBall(GraphicsContext gc){
+        Ball currBall = new Ball(325, 500, 20, 150, 250);
+        // x-coordinate for ball should be its centerX - r, centerY - r, height and width is 2 * radius
+        return currBall;
+    }
+
+    // just use to test out the drawing of the components
+//    private static void drawSomething(GraphicsContext gc){
+//        gc.setFill(Color.ORANGE);
+//        gc.setStroke(Color.BLACK);
+//        int rows = 3;
+//        int cols = 7;
+//        double currX = 0;
+//        double currY = 0;
+//        double w = 100;
+//        double h = 100;
+//        for (int j = 0; j < rows; j++){
+//            for (int i = 0; i < cols; i++){
+//                gc.fillRect(currX, currY, w, h);
+//                currX += (w + 1);
+//            }
+//            currY += (h + 1);
+//            currX = 0;
+//        }
+//        // keep w and h similar so that it looks like a circle
+//        gc.fillOval(100, 400, 30, 30);
+//    }
+
 
     private static class Brick {
         double positionX;
@@ -125,7 +218,7 @@ public class Main extends Application {
         public void move(double dt, double sceneWidth, double sceneHeight, Paddle paddle){
             this.centerPositionX += velocityX * dt;
             this.centerPositionY += velocityY * dt;
-            if (this.centerPositionX + this.radius < 0){
+            if (this.centerPositionX - this.radius < 0){
                 this.centerPositionX = this.radius;
             } else if (this.centerPositionX + this.radius > sceneWidth){
                 this.centerPositionX = sceneWidth - this.radius;
