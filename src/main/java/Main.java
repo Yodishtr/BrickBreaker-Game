@@ -28,7 +28,6 @@ public class Main extends Application {
         gc.setFill(Color.BLACK);
         gc.fillRect(0, 0, gameCanvas.getWidth(), gameCanvas.getHeight());
         // set the stage by drawing the brick layer & paddle & ball
-        // drawSomething(gc);
         Brick[][] brickWall = initBricks(gc);
         Paddle paddle = initPaddle(gc);
         Ball ball = initBall(gc);
@@ -40,6 +39,9 @@ public class Main extends Application {
                 paddle.leftPressed = true;
             } else if (event.getCode() == KeyCode.RIGHT){
                 paddle.rightPressed = true;
+            } else if (event.getCode() == KeyCode.SPACE){
+                if (!ball.launched) {ball.launched = true;}
+                else if (ball.launched) {ball.launched = false;}
             }
         });
         scene.addEventHandler(KeyEvent.KEY_RELEASED, event -> {
@@ -80,11 +82,49 @@ public class Main extends Application {
 
     private static void update(double dt, Paddle paddle, Ball ball, Brick[][] bricks, double sceneWidth,
                                double sceneHeight){
+        // update the paddle position
+        paddle.move(dt);
+        paddle.clampToBounds(sceneWidth);
+
+        // update the ball position
+        if (ball.launched){
+            ball.move(dt, sceneWidth, sceneHeight, paddle);
+            // check the collision with paddle
+            ball.paddleAngleCollision(paddle.positionX, paddle.positionY, paddle.width, paddle.height);
+            // check the brick wall collision
+            int rows = bricks.length;
+            int cols = bricks[0].length;
+            for (int i = 0; i < rows; i++){
+                for (int j = 0; j < cols; j++){
+                    Brick currBrick = bricks[i][j];
+                    if (!currBrick.alive) {
+                        continue;
+                    }
+                    double rectPosX = currBrick.positionX;
+                    double rectPosY = currBrick.positionY;
+                    double rectWidth = currBrick.width;
+                    double rectHeight = currBrick.height;
+                    if (ball.collisionCheck(rectPosX, rectPosY, rectWidth, rectHeight)){
+                        bricks[i][j].alive = false;
+                        ball.collisionOverlap(rectPosX, rectPosY, rectWidth, rectHeight);
+                        return;
+                    }
+                }
+            }
+        } else {
+            ball.resetOnPaddle(paddle);
+        }
+
 
     }
 
     private static void render(GraphicsContext gc, Brick[][] bricks, Paddle paddle, Ball ball,
                                double canvasWidth, double canvasHeight){
+        // clearing the canvas to redraw things fresh
+        gc.clearRect(0, 0, canvasWidth, canvasHeight);
+        gc.setFill(Color.BLACK);
+        gc.fillRect(0, 0, canvasWidth, canvasHeight);
+
         // render the brick wall
         ArrayList<Color> colorsArray = new ArrayList<>(
                 Arrays.asList(Color.ORANGE, Color.BLUE, Color.GREEN));
@@ -106,6 +146,13 @@ public class Main extends Application {
         }
 
         // render the Paddle
+        gc.setFill(Color.RED);
+        gc.fillRect(paddle.positionX, paddle.positionY, paddle.width, paddle.height);
+
+        // render the ball
+        gc.setFill(Color.LAVENDER);
+        gc.fillOval(ball.centerPositionX - ball.radius, ball.centerPositionY - ball.radius,
+                ball.radius * 2, ball.radius * 2);
     }
 
     private static Brick[][] initBricks(GraphicsContext gc){
@@ -139,28 +186,6 @@ public class Main extends Application {
         // x-coordinate for ball should be its centerX - r, centerY - r, height and width is 2 * radius
         return currBall;
     }
-
-    // just use to test out the drawing of the components
-//    private static void drawSomething(GraphicsContext gc){
-//        gc.setFill(Color.ORANGE);
-//        gc.setStroke(Color.BLACK);
-//        int rows = 3;
-//        int cols = 7;
-//        double currX = 0;
-//        double currY = 0;
-//        double w = 100;
-//        double h = 100;
-//        for (int j = 0; j < rows; j++){
-//            for (int i = 0; i < cols; i++){
-//                gc.fillRect(currX, currY, w, h);
-//                currX += (w + 1);
-//            }
-//            currY += (h + 1);
-//            currX = 0;
-//        }
-//        // keep w and h similar so that it looks like a circle
-//        gc.fillOval(100, 400, 30, 30);
-//    }
 
 
     private static class Brick {
@@ -251,13 +276,6 @@ public class Main extends Application {
             }
         }
 
-        public void bounceHorizontal(){
-            this.velocityX *= -1;
-        }
-
-        public void bounceVertical(){
-            this.velocityY *= -1;
-        }
 
         public void resetOnPaddle(Paddle paddle){
             this.centerPositionX = paddle.positionX + (paddle.width / 2);
