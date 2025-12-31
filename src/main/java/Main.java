@@ -79,11 +79,33 @@ public class Main extends Application {
     }
 
     private static void update(double dt, Paddle paddle, Ball ball, Brick[][] bricks, double sceneWidth,
-                               double sceneHeight){}
+                               double sceneHeight){
+
+    }
 
     private static void render(GraphicsContext gc, Brick[][] bricks, Paddle paddle, Ball ball,
                                double canvasWidth, double canvasHeight){
+        // render the brick wall
+        ArrayList<Color> colorsArray = new ArrayList<>(
+                Arrays.asList(Color.ORANGE, Color.BLUE, Color.GREEN));
+        int rows = bricks.length;
+        int cols = bricks[0].length;
+        for(int i = 0; i < rows; i++){
+            for(int j = 0; j < cols; j++){
+                Brick currBrick = bricks[i][j];
+                if (currBrick.alive) {
+                    gc.setFill(colorsArray.get(i));
+                    gc.setStroke(Color.BLACK);
+                    double brickPositionX = currBrick.positionX;
+                    double brickPositionY = currBrick.positionY;
+                    double brickWidth = currBrick.width;
+                    double brickHeight = currBrick.height;
+                    gc.fillRect(brickPositionX, brickPositionY, brickWidth, brickHeight);
+                }
+            }
+        }
 
+        // render the Paddle
     }
 
     private static Brick[][] initBricks(GraphicsContext gc){
@@ -93,17 +115,12 @@ public class Main extends Application {
         double currY = 0;
         double w = 100;
         double h = 100;
-//        ArrayList<Color> colorsArray = new ArrayList<>(
-//                Arrays.asList(Color.ORANGE, Color.BLUE, Color.GREEN));
 
         Brick[][] bricks = new Brick[rows][cols];
         for (int i = 0; i < rows; i++){
             for (int j = 0; j < cols; j++){
                Brick currBrick = new Brick(currX, currY, w, h);
                bricks[i][j] = currBrick;
-//               gc.setFill(colorsArray.get(i));
-//               gc.setStroke(Color.BLACK);
-               gc.fillRect(currX, currY, w, h);
                currX += (w + 1);
             }
             currY += (h + 1);
@@ -220,13 +237,17 @@ public class Main extends Application {
             this.centerPositionY += velocityY * dt;
             if (this.centerPositionX - this.radius < 0){
                 this.centerPositionX = this.radius;
+                this.velocityX *= -1;
             } else if (this.centerPositionX + this.radius > sceneWidth){
                 this.centerPositionX = sceneWidth - this.radius;
+                this.velocityX *= -1;
             }
-            if (this.centerPositionY + this.radius < 0){
-                this.centerPositionY = sceneHeight - this.radius;
-            } else if (this.centerPositionY + this.radius > paddle.positionY + paddle.height){
+            if (this.centerPositionY - this.radius < 0){
+                this.centerPositionY = this.radius;
+                this.velocityY *= -1;
+            } else if (this.centerPositionY + this.radius > sceneHeight){
                 resetOnPaddle(paddle);
+                this.launched = false;
             }
         }
 
@@ -241,6 +262,74 @@ public class Main extends Application {
         public void resetOnPaddle(Paddle paddle){
             this.centerPositionX = paddle.positionX + (paddle.width / 2);
             this.centerPositionY = paddle.positionY - (2 * this.radius);
+        }
+
+        public boolean collisionCheck(double rectX, double rectY, double rectWidth, double rectHeight){
+            double closestX = clamp(this.centerPositionX, rectX, rectWidth + rectX);
+            double closestY = clamp(this.centerPositionY, rectY, rectHeight + rectY);
+            double dx = this.centerPositionX - closestX;
+            double dy = this.centerPositionY - closestY;
+            return (dx * dx + dy * dy) <= (this.radius * this.radius);
+
+        }
+
+        private double clamp(double val, double min, double max){
+            return Math.max(min, Math.min(max, val));
+        }
+
+        public void collisionOverlap(double rectX, double rectY, double rectWidth, double rectHeight){
+            if (!collisionCheck(rectX, rectY, rectWidth, rectHeight)){
+                return;
+            }
+            // rectangle object attributes
+            double left = rectX;
+            double right = rectX + rectWidth;
+            double top = rectY;
+            double bottom = rectY + rectHeight;
+
+            // ball object attribute
+            double ballLeft = this.centerPositionX - this.radius;
+            double ballRight = this.centerPositionX + this.radius;
+            double ballTop = this.centerPositionY - this.radius;
+            double ballBottom = this.centerPositionY + this.radius;
+
+            // calculating the overlaps
+            double leftOverlap = right - ballLeft;
+            double rightOverlap = ballRight - left;
+            double topOverlap = ballBottom - top;
+            double bottomOverlap = bottom - ballTop;
+
+            double minOverlapX = Math.min(leftOverlap, rightOverlap);
+            double minOverlapY = Math.min(topOverlap, bottomOverlap);
+
+            double rectCenterX = (rectWidth / 2) + rectX;
+            double rectCenterY = (rectHeight / 2) + rectY;
+            if (minOverlapX < minOverlapY){
+                this.velocityX *= -1;
+                if (this.centerPositionX < rectCenterX){
+                    this.centerPositionX = left - this.radius - 0.1;
+                } else {
+                    this.centerPositionX = right + this.radius + 0.1;
+                }
+            } else{
+                this.velocityY *= -1;
+                if (this.centerPositionY < rectCenterY){
+                    this.centerPositionY = top - this.radius - 0.1;
+                } else {
+                    this.centerPositionY = bottom + this.radius + 0.1;
+                }
+            }
+        }
+
+        public void paddleAngleCollision(double paddleX, double paddleY, double paddleWidth, double paddleHeight){
+            if (!collisionCheck(paddleX, paddleY, paddleWidth, paddleHeight) || this.velocityY < 0){
+                return;
+            }
+            this.centerPositionY = paddleY - this.radius - 0.1;
+            double paddleCenterX = paddleX + paddleWidth / 2;
+            double hitFactor = clamp((this.centerPositionX - paddleCenterX) / (paddleWidth / 2), -1, 1);
+            this.velocityY *= -1;
+            this.velocityX = hitFactor * 250;
         }
     }
 
